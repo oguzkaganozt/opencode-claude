@@ -10,7 +10,7 @@ reliable tool-calling, working sub-agent dispatch, and a self-contained install
 opencode-claude/
 ├── meridian/         # submodule: proxy that speaks Anthropic + drives the Claude Agent SDK
 ├── plugin/           # first-party OpenCode plugin (no upstream fork, no scrub npm dep)
-├── install.sh        # build meridian + plugin from source
+├── install.sh        # build meridian + plugin, wire OpenCode config
 └── README.md
 ```
 
@@ -66,19 +66,30 @@ sub-agents never spinning up). The fixes live across two layers.
 
 ## Install
 
-This is a **private** GitHub repo. Two install paths depending on how you want to grab the script:
+This is a **private** GitHub repo, so use `gh` for authenticated fetches.
+
+One-command install/update:
 
 ```bash
-# Path A — `gh` is the simplest (auth-aware). One line, no token juggling:
-gh repo clone oguzkaganozt/opencode-claude ~/.opencode-claude -- --recurse-submodules
-~/.opencode-claude/install.sh
-
-# Path B — fetch the bootstrap from the GitHub API and pipe it through bash:
 gh api repos/oguzkaganozt/opencode-claude/contents/bootstrap.sh?ref=main --jq .content \
   | base64 -d | bash
 ```
 
-Both end up running the same `install.sh`, which builds meridian + the plugin and prints the `opencode.json` edit hint. Re-run either of the above any time — the script is idempotent (it detects an existing clone and updates in place).
+That command:
+
+- clones or updates `~/.opencode-claude`
+- builds meridian + the plugin
+- updates `~/.config/opencode/opencode.json` automatically
+- writes a timestamped config backup before changing it
+
+Alternative explicit clone path:
+
+```bash
+gh repo clone oguzkaganozt/opencode-claude ~/.opencode-claude -- --recurse-submodules
+~/.opencode-claude/install.sh
+```
+
+Both end up running the same `install.sh`. Re-run either any time — the script is idempotent.
 
 If `gh` isn't available, fall back to a PAT in env (the bootstrap picks it up automatically):
 
@@ -87,22 +98,9 @@ export GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 gh api ...   # or: GITHUB_TOKEN=...
 ```
 
-The truly single-line `curl -fsSL https://raw.githubusercontent.com/.../bootstrap.sh | bash` only works on **public** repos (raw GitHub returns 404 on private repos without auth). This repo is private, so use Path A or B.
+The truly single-line `curl -fsSL https://raw.githubusercontent.com/.../bootstrap.sh | bash` only works on **public** repos (raw GitHub returns 404 on private repos without auth). This repo is private, so use `gh api`.
 
-Then in `~/.config/opencode/opencode.json`, point the plugin at the built artifact and the provider at the proxy:
-
-```json
-{
-  "plugin": ["/home/oguzkaganozt/.opencode-claude/plugin/dist/index.js"],
-  "provider": {
-    "anthropic": {
-      "options": { "baseURL": "http://127.0.0.1:3456", "apiKey": "dummy" }
-    }
-  }
-}
-```
-
-Finally **restart OpenCode completely** (the proxy starts inside the plugin process). Verify:
+After install/update, **restart OpenCode completely** (the proxy starts inside the plugin process). Verify:
 
 ```bash
 curl -s http://127.0.0.1:3456/v1/models | head -c 200

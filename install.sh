@@ -6,7 +6,7 @@
 #   1. sync meridian submodule (fork/init)
 #   2. bun install + bun build meridian
 #   3. npm install + npm build plugin (file:../meridian is wired in package.json)
-#   4. print the opencode.json path the user must paste in
+#   4. wire ~/.config/opencode/opencode.json automatically
 #
 # No global npm links, no `opencode plugin` registration, no cache symlink.
 # OpenCode loads the plugin from a local path; meridian is resolved through
@@ -63,38 +63,77 @@ npm run build
 [ -f dist/index.js ] || die "plugin build did not produce dist/index.js"
 log "Plugin OK -> $ROOT/plugin/dist/index.js"
 
-# --- opencode.json hint ---------------------------------------------------
-CFG="$HOME/.config/opencode/opencode.json"
+# --- opencode.json wiring -------------------------------------------------
+CFG="${OPENCODE_CONFIG_PATH:-$HOME/.config/opencode/opencode.json}"
 PLUGIN_ENTRY="$ROOT/plugin/dist/index.js"
+
+log "Wiring OpenCode config -> $CFG"
+mkdir -p "$(dirname "$CFG")"
+
+if [ -f "$CFG" ]; then
+  BACKUP="$CFG.bak.$(date +%Y%m%d%H%M%S)"
+  cp "$CFG" "$BACKUP"
+  log "Backed up existing config -> $BACKUP"
+fi
+
+OPENCODE_CONFIG_PATH="$CFG" PLUGIN_ENTRY="$PLUGIN_ENTRY" node <<'NODE'
+const fs = require("node:fs");
+
+const configPath = process.env.OPENCODE_CONFIG_PATH;
+const pluginEntry = process.env.PLUGIN_ENTRY;
+
+let config = {};
+if (fs.existsSync(configPath)) {
+  const raw = fs.readFileSync(configPath, "utf8").trim();
+  if (raw) {
+    try {
+      config = JSON.parse(raw);
+    } catch (error) {
+      console.error(`Failed to parse ${configPath}: ${error.message}`);
+      process.exit(1);
+    }
+  }
+}
+
+const existingPlugins = Array.isArray(config.plugin) ? config.plugin : [];
+const keepPlugin = (entry) => {
+  if (typeof entry !== "string") return true;
+  if (entry === pluginEntry) return false;
+  if (entry === "opencode-with-claude") return false;
+  if (entry.includes("/opencode-with-claude/")) return false;
+  if (entry.includes("/opencode-claude/plugin/dist/index.js")) return false;
+  return true;
+};
+
+config.plugin = [pluginEntry, ...existingPlugins.filter(keepPlugin)];
+config.provider = config.provider && typeof config.provider === "object" ? config.provider : {};
+const anthropic = config.provider.anthropic && typeof config.provider.anthropic === "object"
+  ? config.provider.anthropic
+  : {};
+
+config.provider.anthropic = {
+  ...anthropic,
+  options: {
+    ...(anthropic.options && typeof anthropic.options === "object" ? anthropic.options : {}),
+    baseURL: "http://127.0.0.1:3456",
+    apiKey: "dummy",
+  },
+};
+
+fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+NODE
+
+log "OpenCode config OK -> $CFG"
 
 cat <<EOF
 
-Done. Two final manual steps (one-time):
+Done. OpenCode is configured automatically.
 
-1. Wire the plugin into your opencode config:
+Final step: restart OpenCode completely (quit ALL windows). The plugin's
+plugin.config hook starts the Meridian proxy on startup, so a full restart is
+required.
 
-       $CFG
-
-   Replace the existing opencode-with-claude entry (or add one) with the
-   absolute path to the built plugin:
-
-       "plugin": [
-         "$PLUGIN_ENTRY"
-       ]
-
-   If your config doesn't yet point at the proxy, also add the provider
-   block (port defaults to 3456):
-
-       "provider": {
-         "anthropic": {
-           "options": { "baseURL": "http://127.0.0.1:3456", "apiKey": "dummy" }
-         }
-       }
-
-2. Restart OpenCode completely (quit ALL windows). The plugin's plugin.config
-   hook starts the Meridian proxy on startup, so a full restart is required.
-
-   Verify after restart:
-       curl -s http://127.0.0.1:3456/v1/models | head -c 200
+Verify after restart:
+    curl -s http://127.0.0.1:3456/v1/models | head -c 200
 
 EOF
