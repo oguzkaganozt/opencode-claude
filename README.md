@@ -66,24 +66,34 @@ sub-agents never spinning up). The fixes live across two layers.
 
 ## Install
 
-```bash
-git clone --recurse-submodules https://github.com/oguzkaganozt/opencode-claude.git
-cd opencode-claude
-./install.sh            # or: npm run setup
-```
-
-If you cloned without `--recurse-submodules`:
+This is a **private** GitHub repo. Two install paths depending on how you want to grab the script:
 
 ```bash
-git submodule update --init --recursive
+# Path A — `gh` is the simplest (auth-aware). One line, no token juggling:
+gh repo clone oguzkaganozt/opencode-claude ~/.opencode-claude -- --recurse-submodules
+~/.opencode-claude/install.sh
+
+# Path B — fetch the bootstrap from the GitHub API and pipe it through bash:
+gh api repos/oguzkaganozt/opencode-claude/contents/bootstrap.sh?ref=main --jq .content \
+  | base64 -d | bash
 ```
 
-Then in `~/.config/opencode/opencode.json`, point the plugin at the built
-artifact and the provider at the proxy:
+Both end up running the same `install.sh`, which builds meridian + the plugin and prints the `opencode.json` edit hint. Re-run either of the above any time — the script is idempotent (it detects an existing clone and updates in place).
+
+If `gh` isn't available, fall back to a PAT in env (the bootstrap picks it up automatically):
+
+```bash
+export GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+gh api ...   # or: GITHUB_TOKEN=...
+```
+
+The truly single-line `curl -fsSL https://raw.githubusercontent.com/.../bootstrap.sh | bash` only works on **public** repos (raw GitHub returns 404 on private repos without auth). This repo is private, so use Path A or B.
+
+Then in `~/.config/opencode/opencode.json`, point the plugin at the built artifact and the provider at the proxy:
 
 ```json
 {
-  "plugin": ["/path/to/opencode-claude/plugin/dist/index.js"],
+  "plugin": ["/home/oguzkaganozt/.opencode-claude/plugin/dist/index.js"],
   "provider": {
     "anthropic": {
       "options": { "baseURL": "http://127.0.0.1:3456", "apiKey": "dummy" }
@@ -92,8 +102,7 @@ artifact and the provider at the proxy:
 }
 ```
 
-Finally **restart OpenCode completely** (the proxy starts inside the plugin
-process). Verify:
+Finally **restart OpenCode completely** (the proxy starts inside the plugin process). Verify:
 
 ```bash
 curl -s http://127.0.0.1:3456/v1/models | head -c 200
@@ -101,12 +110,11 @@ curl -s http://127.0.0.1:3456/v1/models | head -c 200
 
 ## Update
 
-Pull the latest workspace + meridian fork commits and rebuild:
+Re-run the install line — the bootstrap detects the existing clone and updates in place:
 
 ```bash
-git pull
-git submodule update --init --recursive
-./install.sh
+gh api repos/oguzkaganozt/opencode-claude/contents/bootstrap.sh?ref=main --jq .content \
+  | base64 -d | bash
 ```
 
 To pull **upstream** changes into meridian, work inside that submodule:
@@ -114,8 +122,10 @@ To pull **upstream** changes into meridian, work inside that submodule:
 ```bash
 git -C meridian fetch upstream && git -C meridian rebase upstream/main
 git -C meridian push fork fork/init     # update the fork
-git add meridian && git commit -m "bump meridian submodule"
+cd ~/.opencode-claude && git add meridian && git commit -m "bump meridian submodule"
 ```
+
+Or set `OPENCODE_CLAUDE_REF=my-branch` to switch to a different ref.
 
 ## Configuration
 
