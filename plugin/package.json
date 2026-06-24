@@ -1,0 +1,21 @@
+{
+  "name": "opencode-claude",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OpenCode plugin that runs Claude (Max/Pro) via the Meridian proxy. First-party wrapper — fixes for selective beta filtering, system-prompt structure, and stable sub-agent dispatch live here.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsup",
+    "test": "node --experimental-strip-types --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@rynfar/meridian": "file:../meridian"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.0.0",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

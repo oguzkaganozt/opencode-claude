@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 #
-# install.sh — build the Meridian proxy + opencode-with-claude plugin from the
-# pinned submodules and register the plugin with OpenCode.
+# install.sh — build Meridian and the opencode-claude plugin from source.
 #
-# Reproduces this resolution chain (all off this repo, nothing in /tmp):
+# Pipeline:
+#   1. sync meridian submodule (fork/init)
+#   2. bun install + bun build meridian
+#   3. npm install + npm build plugin (file:../meridian is wired in package.json)
+#   4. print the opencode.json path the user must paste in
 #
-#   OpenCode plugin cache ──symlink──▶ opencode-with-claude/   (this repo)
-#        └─ node_modules/@rynfar/meridian ──npm link──▶ meridian/   (this repo)
+# No global npm links, no `opencode plugin` registration, no cache symlink.
+# OpenCode loads the plugin from a local path; meridian is resolved through
+# the plugin's own node_modules via the `file:../meridian` dep.
 #
 # Usage:
-#   ./install.sh            build, link, and register the plugin
-#   ./install.sh --test     also run meridian's test suite after building
+#   ./install.sh            build everything
+#   ./install.sh --test     also run meridian's test suite
 #
 set -euo pipefail
 
@@ -44,8 +48,7 @@ cd "$ROOT/meridian"
 bun install
 bun run build
 [ -f dist/server.js ] || die "meridian build did not produce dist/server.js"
-npm link >/dev/null 2>&1
-log "Linked @rynfar/meridian globally -> $ROOT/meridian"
+log "Meridian OK -> $ROOT/meridian/dist/server.js"
 
 if [ "$RUN_TESTS" = "1" ]; then
   log "Running meridian tests (pre-existing unrelated failures are expected)..."
@@ -53,48 +56,45 @@ if [ "$RUN_TESTS" = "1" ]; then
 fi
 
 # --- plugin ----------------------------------------------------------------
-log "Building opencode-with-claude (plugin)..."
-cd "$ROOT/opencode-with-claude"
+log "Building opencode-claude plugin..."
+cd "$ROOT/plugin"
 npm install
-npm link @rynfar/meridian >/dev/null 2>&1
 npm run build
 [ -f dist/index.js ] || die "plugin build did not produce dist/index.js"
-npm link >/dev/null 2>&1
-log "Linked opencode-with-claude globally -> $ROOT/opencode-with-claude"
+log "Plugin OK -> $ROOT/plugin/dist/index.js"
 
-# --- register with OpenCode ------------------------------------------------
-if command -v opencode >/dev/null 2>&1; then
-  log "Registering plugin with OpenCode (refreshing cache)..."
-  opencode plugin opencode-with-claude --force || \
-    warn "'opencode plugin' returned non-zero — the plugin may still load via opencode.json"
-else
-  warn "opencode CLI not on PATH — skipping cache registration"
-fi
-
-# --- opencode.json check ---------------------------------------------------
+# --- opencode.json hint ---------------------------------------------------
 CFG="$HOME/.config/opencode/opencode.json"
-if [ -f "$CFG" ] && grep -q '"opencode-with-claude"' "$CFG"; then
-  log "opencode.json already lists the plugin"
-else
-  warn "Plugin not found in $CFG — add it manually:"
-  cat <<'EOF'
-
-    {
-      "plugin": ["opencode-with-claude"],
-      "provider": {
-        "anthropic": {
-          "options": { "baseURL": "http://127.0.0.1:3456", "apiKey": "dummy" }
-        }
-      }
-    }
-EOF
-fi
+PLUGIN_ENTRY="$ROOT/plugin/dist/index.js"
 
 cat <<EOF
 
-Done. Restart OpenCode completely (quit ALL windows) to load the rebuilt proxy + plugin.
+Done. Two final manual steps (one-time):
 
-  Verify after restart:
-    curl -s http://127.0.0.1:3456/v1/models | head -c 200
+1. Wire the plugin into your opencode config:
+
+       $CFG
+
+   Replace the existing opencode-with-claude entry (or add one) with the
+   absolute path to the built plugin:
+
+       "plugin": [
+         "$PLUGIN_ENTRY"
+       ]
+
+   If your config doesn't yet point at the proxy, also add the provider
+   block (port defaults to 3456):
+
+       "provider": {
+         "anthropic": {
+           "options": { "baseURL": "http://127.0.0.1:3456", "apiKey": "dummy" }
+         }
+       }
+
+2. Restart OpenCode completely (quit ALL windows). The plugin's plugin.config
+   hook starts the Meridian proxy on startup, so a full restart is required.
+
+   Verify after restart:
+       curl -s http://127.0.0.1:3456/v1/models | head -c 200
 
 EOF

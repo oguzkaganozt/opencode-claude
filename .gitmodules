@@ -2,7 +2,3 @@
 	path = meridian
 	url = https://github.com/oguzkaganozt/meridian.git
 	branch = fork/init
-[submodule "opencode-with-claude"]
-	path = opencode-with-claude
-	url = https://github.com/oguzkaganozt/opencode-with-claude.git
-	branch = fork/init

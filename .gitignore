@@ -1,5 +1,7 @@
 # Root-level stray artifacts. Submodules manage their own ignores.
 node_modules/
+plugin/node_modules/
+plugin/dist/
 dist/
 *.log
 .DS_Store
