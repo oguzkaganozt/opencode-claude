@@ -66,13 +66,10 @@ sub-agents never spinning up). The fixes live across two layers.
 
 ## Install
 
-This is a **private** GitHub repo, so use `gh` for authenticated fetches.
-
 One-command install/update:
 
 ```bash
-gh api repos/oguzkaganozt/opencode-claude/contents/bootstrap.sh?ref=main --jq .content \
-  | base64 -d | bash
+curl -fsSL https://raw.githubusercontent.com/oguzkaganozt/opencode-claude/main/bootstrap.sh | bash
 ```
 
 That command:
@@ -85,20 +82,11 @@ That command:
 Alternative explicit clone path:
 
 ```bash
-gh repo clone oguzkaganozt/opencode-claude ~/.opencode-claude -- --recurse-submodules
+git clone --recurse-submodules https://github.com/oguzkaganozt/opencode-claude.git ~/.opencode-claude
 ~/.opencode-claude/install.sh
 ```
 
 Both end up running the same `install.sh`. Re-run either any time — the script is idempotent.
-
-If `gh` isn't available, fall back to a PAT in env (the bootstrap picks it up automatically):
-
-```bash
-export GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
-gh api ...   # or: GITHUB_TOKEN=...
-```
-
-The truly single-line `curl -fsSL https://raw.githubusercontent.com/.../bootstrap.sh | bash` only works on **public** repos (raw GitHub returns 404 on private repos without auth). This repo is private, so use `gh api`.
 
 After install/update, **restart OpenCode completely** (the proxy starts inside the plugin process). Verify:
 
@@ -111,8 +99,7 @@ curl -s http://127.0.0.1:3456/v1/models | head -c 200
 Re-run the install line — the bootstrap detects the existing clone and updates in place:
 
 ```bash
-gh api repos/oguzkaganozt/opencode-claude/contents/bootstrap.sh?ref=main --jq .content \
-  | base64 -d | bash
+curl -fsSL https://raw.githubusercontent.com/oguzkaganozt/opencode-claude/main/bootstrap.sh | bash
 ```
 
 To pull **upstream** changes into meridian, work inside that submodule:

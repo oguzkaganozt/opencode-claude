@@ -1,31 +1,18 @@
 #!/usr/bin/env bash
 #
-# bootstrap.sh — one-line install of oguzkaganozt/opencode-claude (private repo).
+# bootstrap.sh — one-line install of oguzkaganozt/opencode-claude.
 #
-# The simplest reliable flow against a private GitHub repo is:
-#   1. use `gh` to clone (it already has your auth)
-#   2. cd in, run install.sh
-#
-# This script encodes that flow so the user-facing command stays one line.
+# This script keeps the user-facing command to one line: clone/update the repo,
+# build meridian + the OpenCode plugin, and wire ~/.config/opencode/opencode.json.
 #
 # Usage:
-#   gh repo clone oguzkaganozt/opencode-claude ~/.opencode-claude -- --recurse-submodules
-#   ~/.opencode-claude/install.sh
-#
-#   # or, if you want the bootstrap to handle the clone:
-#   gh api repos/oguzkaganozt/opencode-claude/contents/bootstrap.sh?ref=main --jq .content \
-#     | base64 -d | bash
-#
-#   # or for public-repo-style curl-pipe (works because no auth is needed):
 #   curl -fsSL https://raw.githubusercontent.com/oguzkaganozt/opencode-claude/main/bootstrap.sh | bash
-#     (only works if the repo is public; private repos need `gh` or a token)
 #
 # Env vars (all optional):
 #   OPENCODE_CLAUDE_DIR       install directory (default: $HOME/.opencode-claude)
 #   OPENCODE_CLAUDE_REF       branch/tag to checkout (default: main)
 #   OPENCODE_CLAUDE_REPO      owner/repo (default: oguzkaganozt/opencode-claude)
-#   OPENCODE_CLAUDE_TOKEN     PAT for curl | bash against a private repo
-#                              (skipped silently if gh is authenticated)
+#   OPENCODE_CLAUDE_TOKEN     PAT for private forks (not needed for this public repo)
 #
 set -euo pipefail
 
