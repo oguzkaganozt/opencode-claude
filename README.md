@@ -10,7 +10,9 @@ reliable tool-calling, working sub-agent dispatch, and a self-contained install
 opencode-claude/
 ├── meridian/         # submodule: proxy that speaks Anthropic + drives the Claude Agent SDK
 ├── plugin/           # first-party OpenCode plugin (no upstream fork, no scrub npm dep)
-├── install.sh        # build meridian + plugin, wire OpenCode config
+├── install.sh        # curl entrypoint: clone/update, then run local installer
+├── scripts/
+│   └── install-local.sh  # build meridian + plugin, wire OpenCode config
 └── README.md
 ```
 
@@ -69,7 +71,7 @@ sub-agents never spinning up). The fixes live across two layers.
 One-command install/update:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/oguzkaganozt/opencode-claude/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/oguzkaganozt/opencode-claude/main/install.sh | bash
 ```
 
 That command:
@@ -96,10 +98,10 @@ curl -s http://127.0.0.1:3456/v1/models | head -c 200
 
 ## Update
 
-Re-run the install line — the bootstrap detects the existing clone and updates in place:
+Re-run the install line — `install.sh` detects the existing clone and updates in place:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/oguzkaganozt/opencode-claude/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/oguzkaganozt/opencode-claude/main/install.sh | bash
 ```
 
 To pull **upstream** changes into meridian, work inside that submodule:

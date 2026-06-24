@@ -1,139 +1,75 @@
 #!/usr/bin/env bash
 #
-# install.sh — build Meridian and the opencode-claude plugin from source.
-#
-# Pipeline:
-#   1. sync meridian submodule (fork/init)
-#   2. bun install + bun build meridian
-#   3. npm install + npm build plugin (file:../meridian is wired in package.json)
-#   4. wire ~/.config/opencode/opencode.json automatically
-#
-# No global npm links, no `opencode plugin` registration, no cache symlink.
-# OpenCode loads the plugin from a local path; meridian is resolved through
-# the plugin's own node_modules via the `file:../meridian` dep.
+# install.sh — one-line install of oguzkaganozt/opencode-claude.
 #
 # Usage:
-#   ./install.sh            build everything
-#   ./install.sh --test     also run meridian's test suite
+#   curl -fsSL https://raw.githubusercontent.com/oguzkaganozt/opencode-claude/main/install.sh | bash
 #
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUN_TESTS=0
-[ "${1:-}" = "--test" ] && RUN_TESTS=1
+REPO="${OPENCODE_CLAUDE_REPO:-oguzkaganozt/opencode-claude}"
+REF="${OPENCODE_CLAUDE_REF:-main}"
+DIR="${OPENCODE_CLAUDE_DIR:-$HOME/.opencode-claude}"
 
-log()  { printf '\n\033[1;34m==>\033[0m %s\n' "$*"; }
+log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mwarn:\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
-# --- preflight -------------------------------------------------------------
+command -v git >/dev/null 2>&1 || die "git is required"
 command -v node >/dev/null 2>&1 || die "node is required"
-command -v npm  >/dev/null 2>&1 || die "npm is required"
-if ! command -v bun >/dev/null 2>&1; then
-  if [ -x "$HOME/.bun/bin/bun" ]; then
-    export PATH="$HOME/.bun/bin:$PATH"
-  else
-    die "bun is required to build meridian — install from https://bun.sh"
+
+clone_with_gh() {
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    log "using gh (authenticated as $(gh api user --jq .login 2>/dev/null))"
+    gh repo clone "$REPO" "$DIR" -- --branch "$REF" --recurse-submodules --depth 1
+    return 0
   fi
-fi
-log "Toolchain: node $(node -v), npm $(npm -v), bun $(bun -v)"
-
-# --- submodules ------------------------------------------------------------
-log "Syncing submodules..."
-git -C "$ROOT" submodule update --init --recursive
-
-# --- meridian (proxy) ------------------------------------------------------
-log "Building meridian (proxy)..."
-cd "$ROOT/meridian"
-bun install
-bun run build
-[ -f dist/server.js ] || die "meridian build did not produce dist/server.js"
-log "Meridian OK -> $ROOT/meridian/dist/server.js"
-
-if [ "$RUN_TESTS" = "1" ]; then
-  log "Running meridian tests (pre-existing unrelated failures are expected)..."
-  bun run test || warn "meridian test suite reported failures (see output above)"
-fi
-
-# --- plugin ----------------------------------------------------------------
-log "Building opencode-claude plugin..."
-cd "$ROOT/plugin"
-npm install
-npm run build
-[ -f dist/index.js ] || die "plugin build did not produce dist/index.js"
-log "Plugin OK -> $ROOT/plugin/dist/index.js"
-
-# --- opencode.json wiring -------------------------------------------------
-CFG="${OPENCODE_CONFIG_PATH:-$HOME/.config/opencode/opencode.json}"
-PLUGIN_ENTRY="$ROOT/plugin/dist/index.js"
-
-log "Wiring OpenCode config -> $CFG"
-mkdir -p "$(dirname "$CFG")"
-
-if [ -f "$CFG" ]; then
-  BACKUP="$CFG.bak.$(date +%Y%m%d%H%M%S)"
-  cp "$CFG" "$BACKUP"
-  log "Backed up existing config -> $BACKUP"
-fi
-
-OPENCODE_CONFIG_PATH="$CFG" PLUGIN_ENTRY="$PLUGIN_ENTRY" node <<'NODE'
-const fs = require("node:fs");
-
-const configPath = process.env.OPENCODE_CONFIG_PATH;
-const pluginEntry = process.env.PLUGIN_ENTRY;
-
-let config = {};
-if (fs.existsSync(configPath)) {
-  const raw = fs.readFileSync(configPath, "utf8").trim();
-  if (raw) {
-    try {
-      config = JSON.parse(raw);
-    } catch (error) {
-      console.error(`Failed to parse ${configPath}: ${error.message}`);
-      process.exit(1);
-    }
-  }
+  return 1
 }
 
-const existingPlugins = Array.isArray(config.plugin) ? config.plugin : [];
-const keepPlugin = (entry) => {
-  if (typeof entry !== "string") return true;
-  if (entry === pluginEntry) return false;
-  if (entry === "opencode-with-claude") return false;
-  if (entry.includes("/opencode-with-claude/")) return false;
-  if (entry.includes("/opencode-claude/plugin/dist/index.js")) return false;
-  return true;
-};
+clone_with_token() {
+  [ -n "${OPENCODE_CLAUDE_TOKEN:-}" ] || [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ] || return 1
+  local token="${OPENCODE_CLAUDE_TOKEN:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
+  log "using token-authenticated git clone"
+  mkdir -p "$(dirname "$DIR")"
+  git clone "https://x-access-token:${token}@github.com/${REPO}.git" "$DIR" \
+    --branch "$REF" --recurse-submodules --depth 1
+}
 
-config.plugin = [pluginEntry, ...existingPlugins.filter(keepPlugin)];
-config.provider = config.provider && typeof config.provider === "object" ? config.provider : {};
-const anthropic = config.provider.anthropic && typeof config.provider.anthropic === "object"
-  ? config.provider.anthropic
-  : {};
+clone_public() {
+  log "using public git clone"
+  mkdir -p "$(dirname "$DIR")"
+  git clone "https://github.com/${REPO}.git" "$DIR" \
+    --branch "$REF" --recurse-submodules --depth 1
+}
 
-config.provider.anthropic = {
-  ...anthropic,
-  options: {
-    ...(anthropic.options && typeof anthropic.options === "object" ? anthropic.options : {}),
-    baseURL: "http://127.0.0.1:3456",
-    apiKey: "dummy",
-  },
-};
+if [ -d "$DIR/.git" ]; then
+  log "Existing install at $DIR — updating"
+  cd "$DIR"
 
-fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
-NODE
+  expected="https://github.com/${REPO}.git"
+  current="$(git remote get-url origin 2>/dev/null || true)"
+  if [ "$current" != "$expected" ]; then
+    warn "Remote mismatch:"
+    warn "  current:  $current"
+    warn "  expected: $expected"
+    printf 'Re-point origin? [y/N] '
+    read -r ans
+    case "$ans" in y|Y|yes|YES) git remote set-url origin "$expected" ;; *) die "aborted" ;; esac
+  fi
 
-log "OpenCode config OK -> $CFG"
+  git fetch --tags --prune origin 2>/dev/null || true
+  git checkout -- . 2>/dev/null || true
+  git clean -fdx 2>/dev/null || true
+  git checkout "$REF"
+  git pull --ff-only origin "$REF" 2>/dev/null || warn "fast-forward pull failed — leaving tree as-is"
+  git submodule update --init --recursive
+else
+  log "Cloning $REPO @ $REF into $DIR"
+  clone_with_gh || clone_with_token || clone_public || die "clone failed"
+fi
 
-cat <<EOF
-
-Done. OpenCode is configured automatically.
-
-Final step: restart OpenCode completely (quit ALL windows). The plugin's
-plugin.config hook starts the Meridian proxy on startup, so a full restart is
-required.
-
-Verify after restart:
-    curl -s http://127.0.0.1:3456/v1/models | head -c 200
-
-EOF
+cd "$DIR"
+log "Running local installer ..."
+chmod +x scripts/install-local.sh
+exec ./scripts/install-local.sh "$@"
