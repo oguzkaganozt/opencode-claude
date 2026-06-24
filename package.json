@@ -1,0 +1,11 @@
+{
+  "name": "opencode-claude",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Workspace for running Claude (Max/Pro) in OpenCode: Meridian proxy + opencode-with-claude plugin forks, with local fixes for tool-calling reliability and subagent dispatch.",
+  "scripts": {
+    "setup": "./install.sh",
+    "setup:test": "./install.sh --test"
+  },
+  "license": "MIT"
+}
