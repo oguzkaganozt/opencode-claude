@@ -15,6 +15,20 @@ import { createLogger } from "./logger.ts"
 import { getProxyBaseURL, registerCleanup, startProxy } from "./proxy.ts"
 import { scrubOpencodeFingerprints } from "./scrub.ts"
 
+function buildMeridianSourceTag(
+  agentMode: string | undefined,
+  agentName: string,
+): string | undefined {
+  if (agentMode !== "subagent") return undefined
+
+  const safeName = agentName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+
+  return `subagent-${safeName || "unknown"}`
+}
+
 export const ClaudeMaxPlugin: Plugin = async ({ client, directory }) => {
   const log = createLogger(client)
   const agentModes = new Map<string, string>()
@@ -96,10 +110,15 @@ export const ClaudeMaxPlugin: Plugin = async ({ client, directory }) => {
           ? agent.mode
           : agentModes.get(agentName.toLowerCase()) ?? "primary"
 
+      const requestSource = buildMeridianSourceTag(agentMode, agentName)
+
       output.headers["x-opencode-session"] = incoming.sessionID
       output.headers["x-opencode-request"] = incoming.message.id
       output.headers["x-opencode-agent-mode"] = agentMode
       output.headers["x-opencode-agent-name"] = agentName
+      if (requestSource && output.headers["x-meridian-source"] === undefined) {
+        output.headers["x-meridian-source"] = requestSource
+      }
     },
   }
 }
