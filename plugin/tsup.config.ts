@@ -7,5 +7,5 @@ export default defineConfig({
   clean: true,
   dts: false,
   minify: true,
-  external: ["@rynfar/meridian", "@opencode-ai/plugin"],
+  external: ["@oguzkaganozt/meridian", "@opencode-ai/plugin"],
 })

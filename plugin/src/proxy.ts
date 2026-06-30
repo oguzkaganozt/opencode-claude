@@ -1,5 +1,5 @@
 import type { AddressInfo } from "net"
-import { startProxyServer } from "@rynfar/meridian"
+import { startProxyServer } from "@oguzkaganozt/meridian"
 import { classifyProxyLog, type LogFn } from "./logger.ts"
 
 // Enable passthrough mode so the proxy returns tool_use blocks to OpenCode

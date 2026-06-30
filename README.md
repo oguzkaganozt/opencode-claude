@@ -2,8 +2,6 @@
 
 Run Claude Max/Pro inside [OpenCode](https://opencode.ai) through a local Meridian proxy.
 
-The installer builds everything locally and wires `~/.config/opencode/opencode.json` automatically.
-
 ## Install
 
 ```bash
@@ -17,12 +15,6 @@ Then restart OpenCode completely. Run the same command again to update.
 - Node.js, npm, Bun
 - OpenCode
 - Claude CLI authenticated with `claude login`
-
-## Verify
-
-```bash
-curl -s http://127.0.0.1:3456/v1/models | head -c 200
-```
 
 ## Configuration
 
@@ -46,14 +38,12 @@ curl -s http://127.0.0.1:3456/v1/models | head -c 200
 
 - `Claude authentication expired`: run `claude login`, then restart OpenCode.
 - Proxy not responding: restart OpenCode and run the verify command.
-- Plugin fails to load: rerun the install command.
 - Old npm-link setup still present:
-
-```bash
-npm unlink -g opencode-with-claude
-npm unlink -g @rynfar/meridian
-rm -rf ~/.cache/opencode/packages/opencode-with-claude@latest
-```
+  ```bash
+  npm unlink -g opencode-with-claude
+  npm unlink -g @rynfar/meridian
+  rm -rf ~/.cache/opencode/packages/opencode-with-claude@latest
+  ```
 
 ## Development
 
@@ -61,5 +51,3 @@ rm -rf ~/.cache/opencode/packages/opencode-with-claude@latest
 ./scripts/install-local.sh
 ./scripts/install-local.sh --test
 ```
-
-Vendored/plugin code is derived from `ianjwhite99/opencode-with-claude` and `@rynfar/meridian-plugin-opencode-scrub` under MIT-compatible terms.
